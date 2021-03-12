@@ -46,6 +46,8 @@ project "AudioCapture"
 	linkoptions {
 		"/MANIFESTUAC:\"level='requireAdministrator' uiAccess='false'\""
 	}
+	
+	debugargs { "-im vlc.exe" }
 
 	filter "system:windows"
 		staticruntime "On"
@@ -53,7 +55,6 @@ project "AudioCapture"
 
 	filter "configurations:Debug"
 		symbols "On"
-		debugargs { "-im vlc.exe" }
 
 	filter "configurations:Release"
 		optimize "On"
