@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string>
 #include <Windows.h>
 #include <TlHelp32.h>
 
@@ -47,6 +48,14 @@ if ((x)) { \
 }
 
 // Utilities
+
+static std::string FormatErrorMessage(DWORD code)
+{
+	LPSTR messageBuffer;
+	DWORD size = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+		NULL, code, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&messageBuffer, 0, NULL);
+	return std::string(messageBuffer, size);
+}
 
 static bool FindModule(HANDLE hSnapshot, const char* name, MODULEENTRY32* pOutModuleEntry)
 {

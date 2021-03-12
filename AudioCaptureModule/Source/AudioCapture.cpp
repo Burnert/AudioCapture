@@ -1,5 +1,6 @@
 #include "AudioCapture.h"
 
+#include <cstdio>
 #include <TlHelp32.h>
 
 #include "Core/Core.hpp"
@@ -25,6 +26,18 @@ namespace AudioCapture
 		bResult = FindProcess(hSnapshot, EXECUTABLE_FILE_NAME, &processEntry);
 		KILL_ON_FALSE_MB(bResult, "Cannot link to " EXECUTABLE_FILE_NAME "!", "Injection error!");
 		CloseHandle(hSnapshot);
+
+		bResult = AttachConsole(processEntry.th32ProcessID);
+		if (!bResult)
+		{
+			DWORD error = GetLastError();
+			std::string errorMessage = FormatErrorMessage(error);
+			char messageBuffer[500];
+			sprintf_s(messageBuffer, 500, "Cannot attach console.\n%s", errorMessage.c_str());
+			MessageBoxA(NULL, messageBuffer, "Injection error!", MB_ICONEXCLAMATION | MB_OK);
+		}
+
+		printf_s("Console attached to %d", GetCurrentProcessId());
 
 		// Find the AudioSes.dll module in the target process
 
