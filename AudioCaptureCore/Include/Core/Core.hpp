@@ -12,8 +12,9 @@
 
 // Op codes
 
-#define OP_NOP  0x90
-#define OP_JMP  0xE9
+#define OP_NOP    0x90
+#define OP_JMP    0xE9
+#define OP_JMPNA  0xFF
 
 // Verify macros
 
@@ -51,6 +52,9 @@ if ((x)) { \
 
 static std::string FormatErrorMessage(DWORD code)
 {
+	if (!code)
+		return "Invalid error code! (0)";
+
 	LPSTR messageBuffer;
 	DWORD size = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
 		NULL, code, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&messageBuffer, 0, NULL);

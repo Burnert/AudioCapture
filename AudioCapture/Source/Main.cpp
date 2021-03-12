@@ -24,7 +24,7 @@ static struct SModuleOffsets
 		EXIT_ON_NULL_M(hACM, "Cannot load " AUDIOCAPTUREDLL_NAME " library!\n");
 		void* killFuncAddress = GetProcAddress(hACM, "Kill");
 		EXIT_ON_NULL_M(killFuncAddress, "Cannot find Kill function offset!\n");
-		Kill = (DWORD64)killFuncAddress - (DWORD64)hACM;
+		Kill = (DWORD)((BYTE*)killFuncAddress - (BYTE*)hACM);
 		FreeLibrary(hACM);
 	}
 } ModuleOffsets;
@@ -123,6 +123,7 @@ int main(int argc, char** argv)
 
 	BOOL bResult;
 
+	// Find wanted process
 	SnapshotHandle = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, NULL);
 	EXIT_ON_INVALID_HANDLE(SnapshotHandle);
 	PROCESSENTRY32 processEntry = InterpretArgs(argc, argv);
@@ -143,6 +144,7 @@ int main(int argc, char** argv)
 	}
 #endif
 
+	// Find Audio Session module
 	SnapshotHandle = CreateToolhelp32Snapshot(processSnapshotFlag, processEntry.th32ProcessID);
 	EXIT_ON_INVALID_HANDLE(SnapshotHandle);
 	MODULEENTRY32 moduleEntry;
@@ -150,11 +152,12 @@ int main(int argc, char** argv)
 	EXIT_ON_FALSE_M(bResult, "Cannot find AudioSes.dll in module list of the process %s.\n", processEntry.szExeFile);
 	printf_s("Module AudioSes.dll has been found.\n");
 	CloseHandle(SnapshotHandle);
-
-	//CoInitialize(NULL);
-	//MyAudioSource m;
-	//PlayAudioStream(&m);
-
+#if 0
+	CoInitialize(NULL);
+	MyAudioSource m;
+	PlayAudioStream(&m);
+#endif
+	// Inject AudioCaptureModule to the process
 	printf_s("Injecting AudioCaptureModule.dll...\n");
 
 	char modulePath[MAX_PATH + 1];
@@ -165,9 +168,13 @@ int main(int argc, char** argv)
 
 	size_t bytesWritten;
 	bResult = WriteProcessMemory(hProcess, paramLocation, modulePath, strlen(modulePath) + 1, &bytesWritten);
+	EXIT_ON_FALSE_M(bResult, "Cannot write memory for process %s.\n", processEntry.szExeFile);
 
-	CreateRemoteThread(hProcess, NULL, 0, (LPTHREAD_START_ROUTINE)LoadLibraryA, paramLocation, 0, NULL);
+	HANDLE hThread = CreateRemoteThread(hProcess, NULL, 0, (LPTHREAD_START_ROUTINE)LoadLibraryA, paramLocation, 0, NULL);
+	EXIT_ON_NULL_M(hThread, "Cannot create thread in process %s.\n", processEntry.szExeFile);
+	CloseHandle(hThread);
 
+	// Wait for the key press
 	while (!(GetAsyncKeyState(VK_RCONTROL) & 0x8000))
 	{
 		Sleep(10);
@@ -176,13 +183,14 @@ int main(int argc, char** argv)
 	VirtualFreeEx(hProcess, paramLocation, 0, MEM_RELEASE);
 
 	// Kill injected module thread
-
 	SnapshotHandle = CreateToolhelp32Snapshot(processSnapshotFlag, processEntry.th32ProcessID);
 	bResult = FindModule(SnapshotHandle, AUDIOCAPTUREDLL_NAME, &moduleEntry);
-	EXIT_ON_FALSE_M(bResult, "Cannot unload module " AUDIOCAPTUREDLL_NAME "!\n");
+	EXIT_ON_FALSE_M(bResult, "Cannot find and unload module " AUDIOCAPTUREDLL_NAME "!\n");
 	CloseHandle(SnapshotHandle);
 
-	CreateRemoteThread(hProcess, NULL, 0, (LPTHREAD_START_ROUTINE)(moduleEntry.modBaseAddr + ModuleOffsets.Kill), NULL, 0, NULL);
+	hThread = CreateRemoteThread(hProcess, NULL, 0, (LPTHREAD_START_ROUTINE)(moduleEntry.modBaseAddr + ModuleOffsets.Kill), NULL, 0, NULL);
+	EXIT_ON_NULL_M(hThread, "Cannot create module unloading thread in process %s.\n", processEntry.szExeFile);
+	CloseHandle(hThread);
 
 	return 0;
 }

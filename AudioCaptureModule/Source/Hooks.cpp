@@ -1,86 +1,171 @@
 #include "Hooks.h"
 
+#include <unordered_map>
+
 #include "Core/Core.hpp"
 #include "Core/ModuleCore.h"
+#include "AudioCapture.h"
+
+std::unordered_map<void*, SHookInfo> HookCache;
+
+SHookInfo* GetHookInfo(void* hookedAddress)
+{
+	auto entry = HookCache.find(hookedAddress);
+	if (entry == HookCache.end())
+		return nullptr;
+	return &(*entry).second;
+}
+
+static SHookInfo* AddToHookCache(SHookInfo&& hookInfo)
+{
+	HookCache.emplace(hookInfo.HookedProcAddress, std::move(hookInfo));
+	return &HookCache.at(hookInfo.HookedProcAddress);
+}
 
 void CreateHooks(MODULEENTRY32 moduleEntry)
 {
 	// Get function addresses
+	void* ptrGetBufferAddress     = moduleEntry.modBaseAddr + OffsetGetBuffer;
+	void* ptrReleaseBufferAddress = moduleEntry.modBaseAddr + OffsetReleaseBuffer;
 
-	void* ptrGetBufferAddress     = moduleEntry.modBaseAddr + OffsetGetBuffer     + HookPointGetBuffer;
-	void* ptrReleaseBufferAddress = moduleEntry.modBaseAddr + OffsetReleaseBuffer + HookPointReleaseBuffer;
+	// Set trampoline target address to empty bytes at the end of the module
+	BYTE* trampolineAddress = moduleEntry.modBaseAddr + moduleEntry.modBaseSize - 200;
 
-	// Hook
+	// Hook!
+	SHookInfo* pHookInfo;
 
 #ifdef PLATFORM32
+
 	bResult = Hook(ptrGetBufferAddress, HookGetBuffer, 5);
 	_RET0_ON_FALSE_MB(bResult, "Cannot hook to function AudioSes.dll!GetBuffer.");
 	bResult = Hook(ptrReleaseBufferAddress, HookReleaseBuffer, 5);
 	_RET0_ON_FALSE_MB(bResult, "Cannot hook to function AudioSes.dll!ReleaseBuffer.");
+
+#elif defined PLATFORM64
+
+	pHookInfo = Hook(ptrGetBufferAddress, *HookGetBuffer, 5, trampolineAddress);
+	KILL_ON_NULL_MB(pHookInfo, "Cannot hook GetBuffer!", "Hook error!");
+	OriginalGetBuffer = (HRESULT(*)(IAudioRenderClient*, UINT32, BYTE**))pHookInfo->TrampolineAddress;
+	trampolineAddress += 5 + JumpLength;
+
+	pHookInfo = Hook(ptrReleaseBufferAddress, *HookReleaseBuffer, 5, trampolineAddress);
+	KILL_ON_NULL_MB(pHookInfo, "Cannot hook ReleaseBuffer!", "Hook error!");
+	OriginalReleaseBuffer = (HRESULT(*)(IAudioRenderClient*, UINT32, DWORD))pHookInfo->TrampolineAddress;
+	trampolineAddress += 5 + JumpLength;
+
 #endif
-	
-	//FindModule(hSnapshot, "vlc.exe", &moduleEntry);
-	//char message[500];
-	//sprintf(message, "&Kill: %16llx", ((DWORD64)Kill - (DWORD64)moduleEntry.modBaseAddr));
-	//MessageBoxA(NULL, message, "", MB_OK);
 }
 
-bool Hook(void* hookedAddress, void* hookFuncAddress, int length)
+SHookInfo* Hook(void* hookedAddress, void* hookFuncAddress, size_t length, void* trampolineAddress)
 {
 	// Hook cannot be shorter than 5 bytes
-	if (length < 5)
-		return false;
+	if (length < JumpLength)
+		return nullptr;
 
 	DWORD oldProtection;
 	DWORD jumpAddress;
 
-	if (!VirtualProtect(hookedAddress, length, PAGE_EXECUTE_READWRITE, &oldProtection))
-		return false;
+	// Add to hook cache
+	SHookInfo* pHookInfo = AddToHookCache(std::move(SHookInfo {
+		hookedAddress,
+		hookFuncAddress,
+		trampolineAddress,
+		length,
+	}));
 
+	// Place trampoline
+
+	if (!VirtualProtect(trampolineAddress, length + JumpLength, PAGE_EXECUTE_READWRITE, &oldProtection))
+		return nullptr;
+
+	PlaceTrampoline(hookedAddress, trampolineAddress, length);
+
+	if (!VirtualProtect(trampolineAddress, length + JumpLength, PAGE_EXECUTE_READ, &oldProtection))
+		return nullptr;
+
+	// Insert jump
+
+	if (!VirtualProtect(hookedAddress, length, PAGE_EXECUTE_READWRITE, &oldProtection))
+		return nullptr;
+
+	// Set everything to NOP first in case the hook is longer than 5
 	memset(hookedAddress, OP_NOP, length);
 
-	jumpAddress = (DWORD)hookFuncAddress - (DWORD)hookedAddress;
+	jumpAddress = (DWORD)((BYTE*)hookFuncAddress - ((BYTE*)hookedAddress + JumpLength));
 
 	*(BYTE*)hookedAddress = OP_JMP;
 	*(DWORD*)((BYTE*)hookedAddress + 1) = jumpAddress;
 
 	if (!VirtualProtect(hookedAddress, length, oldProtection, &oldProtection))
-		return false;
+		return nullptr;
 
-	return true;
+	return pHookInfo;
 }
 
 bool Unhook(void* hookedAddress)
 {
-	return false;
+	SHookInfo* pHookInfo = GetHookInfo(hookedAddress);
+	if (!pHookInfo)
+		return false;
+	SHookInfo& hookInfo = *pHookInfo;
+
+	RemoveTrampoline(hookInfo);
+
+	return true;
 }
 
-namespace AudioSes
+void PlaceTrampoline(void* hookedAddress, void* targetAddress, size_t hookLength)
 {
-	HRESULT GetBuffer(unsigned int numFramesRequested, unsigned char** ppData)
-	{
-		return 0;
-	}
+	// Calculate the relative jump address
+	DWORD jumpAddress = (DWORD)(((BYTE*)hookedAddress + hookLength) - ((BYTE*)targetAddress + hookLength + JumpLength));
 
-	HRESULT ReleaseBuffer(unsigned int numFramesWritten, unsigned long dwFlags)
-	{
-		return 0;
-	}
+	// Copy bytes from original instruction to the trampoline address
+	memcpy(targetAddress, hookedAddress, hookLength);
+	*((BYTE*)targetAddress + hookLength) = OP_JMP;
+	*(DWORD*)((BYTE*)targetAddress + hookLength + 1) = jumpAddress;
 }
 
+bool RemoveTrampoline(SHookInfo& hookInfo)
+{
+	
+	VirtualFree(hookInfo.TrampolineAddress, 0, MEM_RELEASE);
+
+	
+	return true;
+}
+
+// ---------------------------
+//  Data
+// ---------------------------
+
+BYTE** InterceptedBuffer = nullptr;
+
+// ---------------------------
+//  Hooks
+// ---------------------------
+
+HRESULT(*OriginalGetBuffer)(IAudioRenderClient*, UINT32, BYTE**);
+HRESULT(*OriginalReleaseBuffer)(IAudioRenderClient*, UINT32, DWORD);
+
+HRESULT __stdcall HookGetBuffer(IAudioRenderClient* pIARC, UINT32 numFramesRequested, BYTE** ppData)
+{
+	InterceptedBuffer = ppData;
+	return OriginalGetBuffer(pIARC, numFramesRequested, ppData);
+}
+
+HRESULT __stdcall HookReleaseBuffer(IAudioRenderClient* pIARC, UINT32 numFramesWritten, DWORD dwFlags)
+{
+	return OriginalReleaseBuffer(pIARC, numFramesWritten, dwFlags);
+}
 
 #ifdef PLATFORM32
 
-// -----------------------
-//     Hooks
-// -----------------------
-
-__declspec(naked) void HookGetBuffer()
+__declspec(naked) void nHookGetBuffer()
 {
 
 }
 
-__declspec(naked) void HookReleaseBuffer()
+__declspec(naked) void nHookReleaseBuffer()
 {
 
 }

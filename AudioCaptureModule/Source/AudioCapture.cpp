@@ -5,6 +5,7 @@
 
 #include "Core/Core.hpp"
 #include "Core/ModuleCore.h"
+#include "Hooks.h"
 
 // Exported Kill function
 extern "C" void Kill()
@@ -26,7 +27,7 @@ namespace AudioCapture
 		bResult = FindProcess(hSnapshot, EXECUTABLE_FILE_NAME, &processEntry);
 		KILL_ON_FALSE_MB(bResult, "Cannot link to " EXECUTABLE_FILE_NAME "!", "Injection error!");
 		CloseHandle(hSnapshot);
-
+#if 0
 		bResult = AttachConsole(processEntry.th32ProcessID);
 		if (!bResult)
 		{
@@ -35,9 +36,10 @@ namespace AudioCapture
 			char messageBuffer[500];
 			sprintf_s(messageBuffer, 500, "Cannot attach console.\n%s", errorMessage.c_str());
 			MessageBoxA(NULL, messageBuffer, "Injection error!", MB_ICONEXCLAMATION | MB_OK);
+			_Kill();
 		}
-
-		printf_s("Console attached to %d", GetCurrentProcessId());
+#endif
+		printf_s("Using console output of [%d].\n", GetCurrentProcessId());
 
 		// Find the AudioSes.dll module in the target process
 
@@ -47,6 +49,10 @@ namespace AudioCapture
 		KILL_ON_FALSE_MB(bResult, "Cannot find module " MODULE_AUDIOSES_NAME ".", "Injection error!");
 		CloseHandle(hSnapshot);
 
-		MessageBoxA(NULL, "Module " AUDIOCAPTUREDLL_NAME " Injected Successfully.", "Info", MB_ICONINFORMATION | MB_OK);
+		//MessageBoxA(NULL, "Module " AUDIOCAPTUREDLL_NAME " Injected Successfully.", "Info", MB_ICONINFORMATION | MB_OK);
+		printf_s("Module " AUDIOCAPTUREDLL_NAME " Injected Successfully!\n");
+		printf_s("Creating hooks...\n");
+
+		CreateHooks(moduleEntry);
 	}
 }
