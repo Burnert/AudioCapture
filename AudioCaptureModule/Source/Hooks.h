@@ -44,7 +44,11 @@ bool RemoveTrampoline(SHookInfo* pHookInfo);
 //  Data
 // ---------------------------
 
-extern BYTE** InterceptedBuffer;
+namespace HookedData
+{
+	extern BYTE** Buffer;
+	extern UINT32 FramesRequested;
+}
 
 // ---------------------------
 //  Hooks

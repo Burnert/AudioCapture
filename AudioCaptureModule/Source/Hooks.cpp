@@ -189,7 +189,11 @@ bool RemoveTrampoline(SHookInfo* pHookInfo)
 //  Data
 // ---------------------------
 
-BYTE** InterceptedBuffer = nullptr;
+namespace HookedData
+{
+	BYTE** Buffer = nullptr;
+	UINT32 FramesRequested = 0;
+}
 
 // ---------------------------
 //  Hooks
@@ -200,12 +204,20 @@ HRESULT(*OriginalReleaseBuffer)(IAudioRenderClient*, UINT32, DWORD);
 
 HRESULT __stdcall HookGetBuffer(IAudioRenderClient* pIARC, UINT32 numFramesRequested, BYTE** ppData)
 {
-	InterceptedBuffer = ppData;
+	// Steal the data
+	HookedData::Buffer = ppData;
+	HookedData::FramesRequested = numFramesRequested;
+
 	return OriginalGetBuffer(pIARC, numFramesRequested, ppData);
 }
 
 HRESULT __stdcall HookReleaseBuffer(IAudioRenderClient* pIARC, UINT32 numFramesWritten, DWORD dwFlags)
 {
+	// The buffer needs not to be copied until this function is called 
+	// because it can be written after GetBuffer finishes executing.
+
+	// @TODO: Send the buffer to the main process here.
+
 	return OriginalReleaseBuffer(pIARC, numFramesWritten, dwFlags);
 }
 
