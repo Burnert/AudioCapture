@@ -1,5 +1,7 @@
 #pragma once
 
+#define ACM_API __declspec(dllexport)
+
 #define KILL_ON(x) \
 if (x) { \
 	_Kill(); \

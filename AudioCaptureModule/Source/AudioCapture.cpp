@@ -4,7 +4,6 @@
 #include <TlHelp32.h>
 
 #include "Core/Core.hpp"
-#include "Core/ModuleCore.h"
 #include "Hooks.h"
 
 // Exported Kill function
@@ -53,6 +52,11 @@ namespace AudioCapture
 		printf_s("Module " AUDIOCAPTUREDLL_NAME " Injected Successfully!\n");
 		printf_s("Creating hooks...\n");
 
-		CreateHooks(moduleEntry);
+		CreateHooks(SModuleInfo { moduleEntry.modBaseAddr, moduleEntry.modBaseSize });
+	}
+
+	void Cleanup()
+	{
+		RemoveHooks();
 	}
 }

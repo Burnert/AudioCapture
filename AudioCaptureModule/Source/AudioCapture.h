@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Windows.h>
+#include "Core/ModuleCore.h"
 
 /* Handle to this module */
 extern HMODULE g_hModule;
@@ -13,9 +14,10 @@ static inline void _Kill()
 
 /* Used to kill the module from a different process.
    Don't call this anywhere else than the module unload function. */
-extern "C" __declspec(dllexport) void Kill();
+extern "C" ACM_API void Kill();
 
 namespace AudioCapture
 {
 	void InitModuleInjection();
+	void Cleanup();
 }
