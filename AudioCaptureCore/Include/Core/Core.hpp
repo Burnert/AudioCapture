@@ -8,6 +8,8 @@
 #define AUDIOCAPTUREDLL_NAME   "AudioCaptureModule.dll"
 #define MODULE_AUDIOSES_NAME   "AudioSes.dll"
 
+#define PIPE_NAME_PREFIX       R"(\\.\pipe\audiocapture-)"
+
 #define KILL_FUNC_OFFSET   0x110f5
 
 // Op codes
@@ -49,6 +51,19 @@ if ((x)) { \
 }
 
 // Utilities
+
+// The pipe name will look like: "audiocapture-12345" where 12345 is an example PID.
+template<size_t size>
+static inline bool FillPipeName(char (&str)[size], DWORD pid)
+{
+	if (strcpy_s(str, PIPE_NAME_PREFIX))
+		return false;
+	char szPid[_MAX_ULTOSTR_BASE10_COUNT];
+	_itoa_s(pid, szPid, 10);
+	if (strcat_s(str, szPid))
+		return false;
+	return true;
+}
 
 static std::string FormatErrorMessage(DWORD code)
 {

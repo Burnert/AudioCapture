@@ -168,6 +168,8 @@ bool PlaceTrampoline(void* hookedAddress, void* targetAddress, size_t hookLength
 
 	if (!VirtualProtect(targetAddress, hookLength + JumpLength, PAGE_EXECUTE_READ, &oldProtection))
 		return false;
+
+	return true;
 }
 
 bool RemoveTrampoline(SHookInfo* pHookInfo)
@@ -214,7 +216,7 @@ HRESULT __stdcall HookGetBuffer(IAudioRenderClient* pIARC, UINT32 numFramesReque
 HRESULT __stdcall HookReleaseBuffer(IAudioRenderClient* pIARC, UINT32 numFramesWritten, DWORD dwFlags)
 {
 	// The buffer needs not to be copied until this function is called 
-	// because it can be written after GetBuffer finishes executing.
+	// because it is written after GetBuffer finishes executing.
 
 	// @TODO: Send the buffer to the main process here.
 

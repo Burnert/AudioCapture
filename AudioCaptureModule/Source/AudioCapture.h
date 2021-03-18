@@ -21,3 +21,11 @@ namespace AudioCapture
 	void InitModuleInjection();
 	void Cleanup();
 }
+
+namespace IPC
+{
+	extern HANDLE DataPipeHandle;
+
+	bool ConnectToServer();
+	bool DisconnectFromServer();
+}

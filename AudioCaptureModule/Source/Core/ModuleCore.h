@@ -20,3 +20,5 @@ if (x) { \
 
 #define KILL_ON_INVALID_HANDLE(x)                        KILL_ON((x) == INVALID_HANDLE_VALUE)
 #define KILL_ON_INVALID_HANDLE_MB(x, message, caption)   KILL_ON_MB((x) == INVALID_HANDLE_VALUE, message, caption)
+
+#define MsgBoxLog(message) MessageBoxA(NULL, message, "Log", MB_OK);

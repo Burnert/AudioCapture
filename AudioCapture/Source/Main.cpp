@@ -6,6 +6,7 @@
 #include <Audioclient.h>
 
 #include "Core/Core.hpp"
+#include "IPC.h"
 #include "AudioTest.hpp"
 
 static HANDLE SnapshotHandle = 0;
@@ -112,7 +113,7 @@ static PROCESSENTRY32 InterpretArgs(int& argc, char** argv)
 
 int main(int argc, char** argv)
 {
-	EXIT_ON_NO_FILE_M(AUDIOCAPTUREDLL_NAME, "Module %s not found!\n", AUDIOCAPTUREDLL_NAME);
+	EXIT_ON_NO_FILE_M(AUDIOCAPTUREDLL_NAME, "File %s not found!\n", AUDIOCAPTUREDLL_NAME);
 
 	if (argc < 3)
 	{
@@ -157,22 +158,35 @@ int main(int argc, char** argv)
 	MyAudioSource m;
 	PlayAudioStream(&m);
 #endif
+	// Create an appropriate pipe
+	bResult = IPC::CreateByteBufferPipe(processEntry.th32ProcessID);
+	EXIT_ON_FALSE_M(bResult, "Cannot create a message pipe!\n");
+
 	// Inject AudioCaptureModule to the process
 	printf_s("Injecting AudioCaptureModule.dll...\n");
 
 	char modulePath[MAX_PATH + 1];
 	GetFullPathNameA(AUDIOCAPTUREDLL_NAME, MAX_PATH + 1, modulePath, NULL);
 
+	// Alloc process memory
 	void* paramLocation = VirtualAllocEx(hProcess, NULL, MAX_PATH, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 	EXIT_ON_NULL_M(paramLocation, "Cannot allocate memory for process %s.\n", processEntry.szExeFile);
 
+	// Write DLL to process
 	size_t bytesWritten;
 	bResult = WriteProcessMemory(hProcess, paramLocation, modulePath, strlen(modulePath) + 1, &bytesWritten);
 	EXIT_ON_FALSE_M(bResult, "Cannot write memory for process %s.\n", processEntry.szExeFile);
 
+	// Load DLL
 	HANDLE hThread = CreateRemoteThread(hProcess, NULL, 0, (LPTHREAD_START_ROUTINE)LoadLibraryA, paramLocation, 0, NULL);
 	EXIT_ON_NULL_M(hThread, "Cannot create thread in process %s.\n", processEntry.szExeFile);
 	CloseHandle(hThread);
+
+	// Wait for the process to connect to the pipe
+	printf_s("Waiting for %s to connect to pipe...\n", processEntry.szExeFile);
+	bResult = IPC::WaitForConnection(processEntry.th32ProcessID);
+	EXIT_ON_FALSE_M(bResult, "Cannot connect pipe to [%d]!", processEntry.th32ProcessID);
+	printf_s("Successfully connected to [%d]!\n", processEntry.th32ProcessID);
 
 	// Wait for the key press
 	while (!(GetAsyncKeyState(VK_RCONTROL) & 0x8000))
@@ -188,9 +202,12 @@ int main(int argc, char** argv)
 	EXIT_ON_FALSE_M(bResult, "Cannot find and unload module " AUDIOCAPTUREDLL_NAME "!\n");
 	CloseHandle(SnapshotHandle);
 
+	// Execute Kill function in remote thread
 	hThread = CreateRemoteThread(hProcess, NULL, 0, (LPTHREAD_START_ROUTINE)(moduleEntry.modBaseAddr + ModuleOffsets.Kill), NULL, 0, NULL);
 	EXIT_ON_NULL_M(hThread, "Cannot create module unloading thread in process %s.\n", processEntry.szExeFile);
 	CloseHandle(hThread);
+
+	IPC::DeleteMessagePipe(processEntry.th32ProcessID);
 
 	return 0;
 }
