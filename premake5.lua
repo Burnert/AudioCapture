@@ -49,6 +49,11 @@ project "AudioCapture"
 	
 	debugargs { "-im vlc.exe" }
 
+	postbuildcommands {
+		"{MKDIR} ../Build/" .. outputdir .. "/AudioCapture",
+		"{COPY} %{cfg.buildtarget.relpath} ../AudioCapture"
+	}
+
 	filter "system:windows"
 		staticruntime "On"
 		systemversion "latest"
