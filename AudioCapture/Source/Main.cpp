@@ -7,6 +7,7 @@
 
 #include "Core/Core.hpp"
 #include "IPC.h"
+#include "File.h"
 #include "AudioTest.hpp"
 
 static HANDLE SnapshotHandle = 0;
@@ -164,6 +165,26 @@ int main(int argc, char** argv)
 	bResult = IPC::CreateByteBufferPipe(processEntry.th32ProcessID);
 	EXIT_ON_FALSE_M(bResult, "Cannot create a message pipe!\n");
 
+	// Create a file for writing
+	AudioFile file;
+	bResult = file.Open("AudioOutput.wav", IO::FA_ReadWrite);
+	EXIT_ON_FALSE_M(bResult, "Cannot create AudioOutput.wav!\n");
+
+	Audio::SAudioFormat audioFormatInfo { };
+	audioFormatInfo.Channels = 2;
+	audioFormatInfo.BitDepth = 32;
+	audioFormatInfo.SampleRate = 48000;
+
+	Audio::SWaveInfo waveInfo { };
+	waveInfo.Format = &audioFormatInfo;
+	waveInfo.DataSize = 0;
+	waveInfo.WaveFormat = WAVE_FORMAT_IEEE_FLOAT;
+
+	file.WriteWaveOpening(&waveInfo);
+	EXIT_ON_FALSE_M(bResult, "Cannot write to AudioOutput.wav!\n");
+
+	DWORD fileSize = 0;
+
 	// Inject AudioCaptureModule to the process
 	printf_s("Injecting AudioCaptureModule.dll...\n");
 
@@ -191,12 +212,31 @@ int main(int argc, char** argv)
 	printf_s("Successfully connected to [%d]!\n", processEntry.th32ProcessID);
 
 	// Wait for the key press
-	while (!(GetAsyncKeyState(VK_RCONTROL) & 0x8000))
+ 	while (!(GetAsyncKeyState(VK_RCONTROL) & 0x8000))
 	{
-		// Continue reading the buffer pipe if it's possible
-		if (!IPC::ReadByteBufferPipe(processEntry.th32ProcessID))
-			break;
+		// Read from the buffer pipe
+
+		DWORD bufferSize = IPC::PeekByteBufferPipeSize(processEntry.th32ProcessID);
+		if (bufferSize == 0)
+			continue;
+
+		bResult = IPC::AllocByteBuffer(bufferSize);
+		EXIT_ON_FALSE(bResult);
+
+		bResult = IPC::ReadByteBufferPipe(processEntry.th32ProcessID, bufferSize);
+		EXIT_ON_FALSE(bResult);
+
+		fileSize += bufferSize;
+		// Write the read buffer to file
+		bResult = file.Write(IPC::BufferData, bufferSize);
+		EXIT_ON_FALSE(bResult);
+
+		bResult = IPC::FreeByteBuffer();
+		EXIT_ON_FALSE(bResult);
 	}
+	// Finalize the file by writing the size
+	file.WriteWaveSize(fileSize);
+	file.Close();
 
 	IPC::DisconnectClient(processEntry.th32ProcessID);
 

@@ -12,6 +12,7 @@ extern "C" void Kill()
 	_Kill();
 }
 
+// @FIXME: This func unfortunately explodes when the DLL is unloaded
 static void _ThreadMsgBoxNonBlocking(void* pType)
 {
 	switch (*(unsigned int*)pType)
@@ -73,7 +74,8 @@ namespace AudioCapture
 
 		bResult = IPC::ConnectToServer();
 		KILL_ON_FALSE_MB(bResult, "Cannot connect to server pipe!", "Connection error");
-		MsgBoxNonBlocking(MSG_CONNECTED_TO_SERVER);
+		// Disable this for now because it destroys everything
+		//MsgBoxNonBlocking(MSG_CONNECTED_TO_SERVER);
 	}
 
 	void Cleanup()

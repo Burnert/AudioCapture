@@ -2,6 +2,7 @@
 
 #include <unordered_map>
 #include "Core/Core.hpp"
+#include "AudioBufferParser.h"
 
 namespace IPC
 {
@@ -53,33 +54,63 @@ namespace IPC
 		return true;
 	}
 
-	bool ReadByteBufferPipe(DWORD targetPid)
+	bool ReadByteBufferPipe(DWORD targetPid, DWORD count)
 	{
 		BOOL bResult;
 		auto iter = PipeMap.find(targetPid);
 		if (iter == PipeMap.end())
 			return false;
 		HANDLE hPipe = (*iter).second;
+		
+		DWORD bytesRead;
+		bResult = ReadFile(hPipe, BufferData, count, &bytesRead, NULL);
+
+		SVolume volume = GetBufferVolume32(BufferData, count / 8, 8);
+		printf_s("Buffer: (size: %d) [volume: %.2f, max: %.2f] ", count, volume.Avg, volume.Max);
+		char volumeMeter[51];
+		ZeroMemory(volumeMeter, 51);
+
+		char* volumeMeterPtr = volumeMeter;
+		for (int i = 0; i < 50; ++i)
+		{
+			float iNorm = i / 50.0f;
+			*volumeMeterPtr = ((iNorm <= volume.Avg) ? '#' : '-');
+			if (volume.Max > iNorm && volume.Max < (i + 1) / 50.0f || 
+				i == 49 && volume.Max > 1.0f)
+				*volumeMeterPtr = '|';
+			volumeMeterPtr++;
+		}
+
+		printf_s("%s\n", volumeMeter);
+
+		return bResult;
+	}
+
+	DWORD PeekByteBufferPipeSize(DWORD targetPid)
+	{
+		BOOL bResult;
+		auto iter = PipeMap.find(targetPid);
+		if (iter == PipeMap.end())
+			return 0;
+		HANDLE hPipe = (*iter).second;
 
 		DWORD bytesAvailable;
 		bResult = PeekNamedPipe(hPipe, NULL, 0, NULL, &bytesAvailable, NULL);
 		if (!bResult)
-			return false;
+			return 0;
 
-		if (bytesAvailable == 0)
-			return true;
+		return bytesAvailable;
+	}
 
-		BufferData = new BYTE[bytesAvailable];
+	bool AllocByteBuffer(DWORD size)
+	{
+		BufferData = (BYTE*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, size);
+		return BufferData;
+	}
 
-		DWORD bytesRead;
-		bResult = ReadFile(hPipe, BufferData, bytesAvailable, &bytesRead, NULL);
-
-		// @TODO: Process and save the data
-		printf_s("Buffer: %p (size: %d)\n", BufferData, bytesAvailable);
-
-		delete[] BufferData;
-
-		return bResult;
+	bool FreeByteBuffer()
+	{
+		return HeapFree(GetProcessHeap(), 0, IPC::BufferData);
 	}
 
 	bool WaitForConnection(DWORD targetPid)

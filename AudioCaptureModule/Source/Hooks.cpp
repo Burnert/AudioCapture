@@ -212,7 +212,9 @@ namespace Hooks
 	{
 		// The buffer needs not to be copied until this function is called 
 		// because it is written after GetBuffer finishes executing.
-		IPC::SendData(*Buffer, FramesRequested);
+		// Buffer + 16 -> there are 4 bytes of bullshit at the beginning of each buffer
+		// and I have no clue what they could represent, so we're just gonna skip them.
+		IPC::SendData(*Buffer, FramesRequested * 8);
 		return OriginalReleaseBuffer(pIARC, numFramesWritten, dwFlags);
 	}
 }
