@@ -5,6 +5,8 @@
 
 namespace IPC
 {
+	BYTE* BufferData = nullptr;
+
 	std::unordered_map<DWORD, HANDLE> PipeMap;
 
 	bool CreateByteBufferPipe(DWORD targetPid)
@@ -40,10 +42,53 @@ namespace IPC
 		return true;
 	}
 
+	bool DeleteByteBufferPipe(DWORD targetPid)
+	{
+		auto iter = PipeMap.find(targetPid);
+		if (iter == PipeMap.end())
+			return false;
+		HANDLE hPipe = (*iter).second;
+
+		CloseHandle(hPipe);
+		return true;
+	}
+
+	bool ReadByteBufferPipe(DWORD targetPid)
+	{
+		BOOL bResult;
+		auto iter = PipeMap.find(targetPid);
+		if (iter == PipeMap.end())
+			return false;
+		HANDLE hPipe = (*iter).second;
+
+		DWORD bytesAvailable;
+		bResult = PeekNamedPipe(hPipe, NULL, 0, NULL, &bytesAvailable, NULL);
+		if (!bResult)
+			return false;
+
+		if (bytesAvailable == 0)
+			return true;
+
+		BufferData = new BYTE[bytesAvailable];
+
+		DWORD bytesRead;
+		bResult = ReadFile(hPipe, BufferData, bytesAvailable, &bytesRead, NULL);
+
+		// @TODO: Process and save the data
+		printf_s("Buffer: %p (size: %d)\n", BufferData, bytesAvailable);
+
+		delete[] BufferData;
+
+		return bResult;
+	}
+
 	bool WaitForConnection(DWORD targetPid)
 	{
 		BOOL bResult;
-		HANDLE hPipe = (*PipeMap.find(targetPid)).second;
+		auto iter = PipeMap.find(targetPid);
+		if (iter == PipeMap.end())
+			return false;
+		HANDLE hPipe = (*iter).second;
 
 		bResult = ConnectNamedPipe(hPipe, NULL);
 		if (!bResult)
@@ -58,14 +103,19 @@ namespace IPC
 		return bResult;
 	}
 
-	bool DeleteByteBufferPipe(DWORD targetPid)
+	bool DisconnectClient(DWORD targetPid)
 	{
+		BOOL bResult;
 		auto iter = PipeMap.find(targetPid);
 		if (iter == PipeMap.end())
 			return false;
-
 		HANDLE hPipe = (*iter).second;
-		CloseHandle(hPipe);
-		return true;
+
+		bResult = FlushFileBuffers(hPipe);
+		if (!bResult)
+			return false;
+
+		bResult = DisconnectNamedPipe(hPipe);
+		return bResult;
 	}
 }

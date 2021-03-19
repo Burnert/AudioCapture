@@ -14,7 +14,7 @@ static HANDLE SnapshotHandle = 0;
 static MODULEENTRY32 AudioSesEntry;
 static MODULEENTRY32 AudioCaptureModuleEntry;
 
-static struct SModuleOffsets
+struct SModuleOffsets
 {
 	DWORD Kill;
 
@@ -193,8 +193,12 @@ int main(int argc, char** argv)
 	// Wait for the key press
 	while (!(GetAsyncKeyState(VK_RCONTROL) & 0x8000))
 	{
-		Sleep(10);
+		// Continue reading the buffer pipe if it's possible
+		if (!IPC::ReadByteBufferPipe(processEntry.th32ProcessID))
+			break;
 	}
+
+	IPC::DisconnectClient(processEntry.th32ProcessID);
 
 	VirtualFreeEx(hProcess, paramLocation, 0, MEM_RELEASE);
 

@@ -16,6 +16,12 @@ static inline void _Kill()
    Don't call this anywhere else than the module unload function. */
 extern "C" ACM_API void Kill();
 
+// Non-blocking MsgBox message types:
+
+#define MSG_CONNECTED_TO_SERVER   1
+
+void MsgBoxNonBlocking(unsigned int type);
+
 namespace AudioCapture
 {
 	void InitModuleInjection();
@@ -28,4 +34,6 @@ namespace IPC
 
 	bool ConnectToServer();
 	bool DisconnectFromServer();
+
+	bool SendData(BYTE* data, unsigned long count);
 }

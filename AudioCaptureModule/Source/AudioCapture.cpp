@@ -12,6 +12,25 @@ extern "C" void Kill()
 	_Kill();
 }
 
+static void _ThreadMsgBoxNonBlocking(void* pType)
+{
+	switch (*(unsigned int*)pType)
+	{
+	case 1:
+		MessageBoxA(NULL, "Connected to server.", "Connection", MB_ICONINFORMATION | MB_OK);
+		break;
+	}
+	BOOL bResult = HeapFree(GetProcessHeap(), 0, pType);
+}
+
+void MsgBoxNonBlocking(unsigned int type)
+{
+#pragma warning(disable:6011)
+	unsigned int* pType = (unsigned int*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(int));
+	*pType = type;
+	CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)_ThreadMsgBoxNonBlocking, pType, 0, NULL);
+}
+
 namespace AudioCapture
 {
 	void InitModuleInjection()
@@ -50,17 +69,17 @@ namespace AudioCapture
 		printf_s("Module " AUDIOCAPTUREDLL_NAME " Injected Successfully!\n");
 
 		printf_s("Creating hooks...\n");
-		CreateHooks(SModuleInfo { moduleEntry.modBaseAddr, moduleEntry.modBaseSize });
+		Hooks::CreateHooks(SModuleInfo { moduleEntry.modBaseAddr, moduleEntry.modBaseSize });
 
 		bResult = IPC::ConnectToServer();
 		KILL_ON_FALSE_MB(bResult, "Cannot connect to server pipe!", "Connection error");
-		MessageBoxA(NULL, "Connected to server.", "Connection", MB_ICONINFORMATION | MB_OK);
+		MsgBoxNonBlocking(MSG_CONNECTED_TO_SERVER);
 	}
 
 	void Cleanup()
 	{
 		IPC::DisconnectFromServer();
-		RemoveHooks();
+		Hooks::RemoveHooks();
 	}
 }
 
@@ -92,5 +111,14 @@ namespace IPC
 	bool DisconnectFromServer()
 	{
 		return CloseHandle(DataPipeHandle);
+	}
+
+	bool SendData(BYTE* data, unsigned long count)
+	{
+		BOOL bResult;
+		DWORD bytesWritten;
+
+		bResult = WriteFile(DataPipeHandle, data, count, &bytesWritten, NULL);
+		return bResult;
 	}
 }
