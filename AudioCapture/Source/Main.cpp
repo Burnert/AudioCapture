@@ -1,9 +1,9 @@
 #include "ACPCH.h"
 
 #include "Core/Core.hpp"
-#include "IPC.h"
-#include "File.h"
-#include "AudioTest.hpp"
+#include "AudioCapture/IPC.h"
+#include "AudioCapture/File.h"
+#include "AudioCapture/AudioTest.hpp"
 
 static HANDLE SnapshotHandle = 0;
 
