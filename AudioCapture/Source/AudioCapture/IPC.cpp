@@ -143,9 +143,13 @@ namespace IPC
 			return false;
 		HANDLE hPipe = (*iter).second;
 
-		bResult = FlushFileBuffers(hPipe);
-		if (!bResult)
-			return false;
+		//bResult = FlushFileBuffers(hPipe);
+		//if (!bResult)
+		//{
+		//	std::string error = FormatErrorMessage(GetLastError());
+		//	printf_s(error.c_str());
+		//	return false;
+		//}
 
 		bResult = DisconnectNamedPipe(hPipe);
 		return bResult;

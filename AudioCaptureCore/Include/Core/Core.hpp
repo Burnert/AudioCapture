@@ -18,6 +18,9 @@
 #define OP_JMP    0xE9
 #define OP_JMPNA  0xFF
 
+
+#define EXIT() exit(0)
+
 // Verify macros
 
 #define EXIT_ON(x) \
