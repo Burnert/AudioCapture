@@ -33,6 +33,7 @@ project "AudioCapture"
 
 	files {
 		"%{prj.name}/Source/**.h",
+		"%{prj.name}/Source/**.c",
 		"%{prj.name}/Source/**.hpp",
 		"%{prj.name}/Source/**.cpp",
 	}
@@ -57,6 +58,9 @@ project "AudioCapture"
 		"{MKDIR} ../Build/" .. outputdir .. "/AudioCapture",
 		"{COPY} %{cfg.buildtarget.relpath} ../AudioCapture"
 	}
+
+	filter "files:**.c"
+		flags { "NoPCH" }
 
 	filter "system:windows"
 		staticruntime "On"
