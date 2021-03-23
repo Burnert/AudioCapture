@@ -43,6 +43,11 @@ project "AudioCapture"
 		"AudioCaptureCore/Include",
 		"AudioCapture/ThirdParty/Nuklear"
 	}
+
+	links {
+		"Gdiplus.lib",
+		"Shlwapi.lib",
+	}
 	
 	dependson {
 		"AudioCaptureModule"

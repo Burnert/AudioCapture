@@ -9,3 +9,4 @@
 #include <TlHelp32.h>
 
 #include "nuklear/nuklear.h"
+#include "nuklear/demo/gdip/nuklear_gdip.h"
