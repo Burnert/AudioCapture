@@ -17,21 +17,24 @@ namespace Application
 
 		if (!s_bRegistered)
 		{
-			if (RegisterWindowClass(hInstance))
-				s_bRegistered = true;
+			if (!RegisterWindowClass(hInstance))
+				return;
+
+			s_bRegistered = true;
 		}
 
 		m_Title = title;
 
 		DWORD style = WS_OVERLAPPEDWINDOW;
+		DWORD styleEx = WS_EX_APPWINDOW;
 
 		m_hWnd = CreateWindowExA(
-			NULL,
+			styleEx,
 			ClassName,
 			m_Title.c_str(),
 			style,
 			CW_USEDEFAULT, CW_USEDEFAULT, // position
-			960, 480,                     // dimensions
+			960, 640,                     // dimensions
 			NULL,
 			NULL,
 			hInstance,
