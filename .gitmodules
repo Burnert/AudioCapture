@@ -1,3 +1,0 @@
-[submodule "AudioCapture/ThirdParty/Nuklear/nuklear"]
-	path = AudioCapture/ThirdParty/Nuklear/nuklear
-	url = https://github.com/vurtun/nuklear
