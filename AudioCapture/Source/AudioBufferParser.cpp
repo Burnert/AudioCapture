@@ -1,7 +1,6 @@
-#include "AudioBufferParser.h"
+#include "ACPCH.h"
 
-#include <cmath>
-#include <cstdio>
+#include "AudioBufferParser.h"
 
 // Works only for 32-bit samples
 SVolume GetBufferVolume32(BYTE* buffer, unsigned int frames, unsigned int frameSize)

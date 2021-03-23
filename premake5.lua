@@ -25,6 +25,9 @@ project "AudioCapture"
 	characterset "MBCS"
 	cppdialect "C++17"
 
+	pchheader "ACPCH.h"
+	pchsource "AudioCapture/Source/ACPCH.cpp"
+
 	targetdir ("Build/" .. outputdir .. "/%{prj.name}")
 	objdir ("Intermediate/" .. outputdir .. "/%{prj.name}")
 
@@ -36,7 +39,8 @@ project "AudioCapture"
 
 	includedirs {
 		"%{prj.name}/Source",
-		"AudioCaptureCore/Include"
+		"AudioCaptureCore/Include",
+		"AudioCapture/ThirdParty/Nuklear"
 	}
 	
 	dependson {

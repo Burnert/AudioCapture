@@ -1,8 +1,5 @@
-#include <cstdio>
-#include <string>
+#include "ACPCH.h"
 
-#include <Windows.h>
-#include <TlHelp32.h>
 #include <Audioclient.h>
 
 #include "Core/Core.hpp"
