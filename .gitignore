@@ -28,6 +28,7 @@
 
 # Executables
 *.exe
+!premake5.exe
 *.out
 *.app
 
@@ -47,3 +48,4 @@ Assets/**
 *.bat
 *.lnk
 *.wav
+*.rar
