@@ -47,3 +47,4 @@ Assets/**
 *.bat
 *.lnk
 *.wav
+!ThirdParty/Premake/**
