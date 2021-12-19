@@ -13,9 +13,9 @@ namespace Hooks
 	//  HookCache
 	// ---------------------
 
-	std::unordered_map<void*, SHookInfo> HookCache;
+	std::unordered_map<void*, HookInfo> HookCache;
 
-	SHookInfo* GetHookInfo(void* hookedAddress)
+	HookInfo* GetHookInfo(void* hookedAddress)
 	{
 		auto entry = HookCache.find(hookedAddress);
 		if (entry == HookCache.end())
@@ -23,7 +23,7 @@ namespace Hooks
 		return &(*entry).second;
 	}
 
-	static SHookInfo* AddToHookCache(SHookInfo&& hookInfo)
+	static HookInfo* AddToHookCache(HookInfo&& hookInfo)
 	{
 		HookCache.emplace(hookInfo.HookedProcAddress, std::move(hookInfo));
 		return &HookCache.at(hookInfo.HookedProcAddress);
@@ -35,20 +35,45 @@ namespace Hooks
 	}
 
 	// ------------------------------
+	//  Offsets
+	// ------------------------------
+
+	static struct FuncOffsets
+	{
+		DWORD GetBuffer;
+		DWORD ReleaseBuffer;
+	} g_FuncOffsets;
+
+#define KILL_ON_FALSE_MB_CLOSE_HANDLE(x, msg, cap) if (!(x)) { CloseHandle(hFile); KILL_ON_MB(true, msg, cap); }
+	void ReadOffsets()
+	{
+		GET_OFFSET_FILE_PATH(tempPath);
+
+		HANDLE hFile = CreateFile(tempPath, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+		KILL_ON_MB(hFile == INVALID_HANDLE_VALUE, "Cannot load the offsets file!", "File load error");
+
+		DWORD dwBytesRead;
+		KILL_ON_FALSE_MB_CLOSE_HANDLE(ReadFile(hFile, &g_FuncOffsets.GetBuffer, sizeof(DWORD), &dwBytesRead, NULL), "Cannot read the offsets file!", "File read error");
+		KILL_ON_FALSE_MB_CLOSE_HANDLE(ReadFile(hFile, &g_FuncOffsets.ReleaseBuffer, sizeof(DWORD), &dwBytesRead, NULL), "Cannot read the offsets file!", "File read error");
+
+		CloseHandle(hFile);
+	}
+
+	// ------------------------------
 	//  Hooking procedures
 	// ------------------------------
 
-	void CreateHooks(SModuleInfo moduleInfo)
+	void CreateHooks(ModuleInfo moduleInfo)
 	{
 		// Get function addresses
-		void* ptrGetBufferAddress     = moduleInfo.BaseAddress + OffsetGetBuffer;
-		void* ptrReleaseBufferAddress = moduleInfo.BaseAddress + OffsetReleaseBuffer;
+		void* ptrGetBufferAddress     = moduleInfo.BaseAddress + g_FuncOffsets.GetBuffer;
+		void* ptrReleaseBufferAddress = moduleInfo.BaseAddress + g_FuncOffsets.ReleaseBuffer;
 
 		// Set trampoline target address to empty bytes at the end of the module
 		BYTE* trampolineAddress = moduleInfo.BaseAddress + moduleInfo.Size - 50;
 
 		// Hook!
-		SHookInfo* pHookInfo;
+		HookInfo* pHookInfo;
 
 	#ifdef PLATFORM32
 
@@ -78,7 +103,7 @@ namespace Hooks
 	{
 		while (!HookCache.empty())
 		{
-			SHookInfo* currentHook = &(*HookCache.begin()).second;
+			HookInfo* currentHook = &(*HookCache.begin()).second;
 			if (!Unhook(currentHook->HookedProcAddress))
 			{
 				char message[100];
@@ -88,7 +113,7 @@ namespace Hooks
 		}
 	}
 
-	SHookInfo* Hook(void* hookedAddress, void* hookFuncAddress, size_t length, void* trampolineAddress)
+	HookInfo* Hook(void* hookedAddress, void* hookFuncAddress, size_t length, void* trampolineAddress)
 	{
 		// Hook cannot be shorter than 5 bytes
 		if (length < JumpLength)
@@ -98,7 +123,7 @@ namespace Hooks
 		DWORD jumpAddress;
 
 		// Add to hook cache
-		SHookInfo* pHookInfo = AddToHookCache(SHookInfo {
+		HookInfo* pHookInfo = AddToHookCache(HookInfo {
 			hookedAddress,
 			hookFuncAddress,
 			trampolineAddress,
@@ -130,7 +155,7 @@ namespace Hooks
 
 	bool Unhook(void* hookedAddress)
 	{
-		SHookInfo* pHookInfo = GetHookInfo(hookedAddress);
+		HookInfo* pHookInfo = GetHookInfo(hookedAddress);
 		if (!pHookInfo)
 			return false;
 
@@ -174,7 +199,7 @@ namespace Hooks
 		return true;
 	}
 
-	bool RemoveTrampoline(SHookInfo* pHookInfo)
+	bool RemoveTrampoline(HookInfo* pHookInfo)
 	{
 		DWORD oldProtection;
 		if (!VirtualProtect(pHookInfo->TrampolineAddress, pHookInfo->Length + JumpLength, PAGE_EXECUTE_READWRITE, &oldProtection))
@@ -221,14 +246,14 @@ namespace Hooks
 
 #ifdef PLATFORM32
 
-__declspec(naked) void nHookGetBuffer()
-{
-
-}
-
-__declspec(naked) void nHookReleaseBuffer()
-{
-
-}
+//__declspec(naked) void nHookGetBuffer()
+//{
+//
+//}
+//
+//__declspec(naked) void nHookReleaseBuffer()
+//{
+//
+//}
 
 #endif

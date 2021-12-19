@@ -55,7 +55,7 @@ bool File::Write(const void* buffer, unsigned int count)
 
 // AudioFile
 
-bool AudioFile::WriteWaveOpening(Audio::SWaveInfo* waveInfo)
+bool AudioFile::WriteWaveOpening(Audio::WaveInfo* waveInfo)
 {
 	if (m_hFile == INVALID_HANDLE_VALUE || !waveInfo)
 		return false;

@@ -69,8 +69,10 @@ namespace AudioCapture
 
 		printf_s("Module " AUDIOCAPTUREDLL_NAME " Injected Successfully!\n");
 
+		Hooks::ReadOffsets();
+
 		printf_s("Creating hooks...\n");
-		Hooks::CreateHooks(SModuleInfo { moduleEntry.modBaseAddr, moduleEntry.modBaseSize });
+		Hooks::CreateHooks(ModuleInfo { moduleEntry.modBaseAddr, moduleEntry.modBaseSize });
 
 		bResult = IPC::ConnectToServer();
 		KILL_ON_FALSE_MB(bResult, "Cannot connect to server pipe!", "Connection error");

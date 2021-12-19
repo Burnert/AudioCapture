@@ -4,7 +4,7 @@
 
 namespace IPC
 {
-	extern BYTE* BufferData;
+	extern BYTE* g_BufferData;
 
 	bool CreateByteBufferPipe(DWORD targetPid);
 	bool DeleteByteBufferPipe(DWORD targetPid);

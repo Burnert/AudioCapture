@@ -6,16 +6,14 @@
 
 namespace IPC
 {
-	BYTE* BufferData = nullptr;
+	BYTE* g_BufferData = nullptr;
 
-	std::unordered_map<DWORD, HANDLE> PipeMap;
+	static std::unordered_map<DWORD, HANDLE> g_PipeMap;
 
 	bool CreateByteBufferPipe(DWORD targetPid)
 	{
 		if (targetPid == 0)
 			return false;
-
-		BOOL bResult;
 
 		// The pipe name will look like: "audiocapture-12345" where 12345 is an example PID.
 		char szPipeName[50] = "";
@@ -39,14 +37,14 @@ namespace IPC
 		if (hPipe == INVALID_HANDLE_VALUE)
 			return false;
 
-		PipeMap.insert({ targetPid, hPipe });
+		g_PipeMap.insert({ targetPid, hPipe });
 		return true;
 	}
 
 	bool DeleteByteBufferPipe(DWORD targetPid)
 	{
-		auto iter = PipeMap.find(targetPid);
-		if (iter == PipeMap.end())
+		auto iter = g_PipeMap.find(targetPid);
+		if (iter == g_PipeMap.end())
 			return false;
 		HANDLE hPipe = (*iter).second;
 
@@ -57,15 +55,15 @@ namespace IPC
 	bool ReadByteBufferPipe(DWORD targetPid, DWORD count)
 	{
 		BOOL bResult;
-		auto iter = PipeMap.find(targetPid);
-		if (iter == PipeMap.end())
+		auto iter = g_PipeMap.find(targetPid);
+		if (iter == g_PipeMap.end())
 			return false;
 		HANDLE hPipe = (*iter).second;
 		
 		DWORD bytesRead;
-		bResult = ReadFile(hPipe, BufferData, count, &bytesRead, NULL);
+		bResult = ReadFile(hPipe, g_BufferData, count, &bytesRead, NULL);
 
-		SVolume volume = GetBufferVolume32(BufferData, count / 8, 8);
+		SVolume volume = GetBufferVolume32(g_BufferData, count / 8, 8);
 		printf_s("Buffer: (size: %d) [volume: %.2f, max: %.2f] ", count, volume.Avg, volume.Max);
 		char volumeMeter[51];
 		ZeroMemory(volumeMeter, 51);
@@ -89,8 +87,8 @@ namespace IPC
 	DWORD PeekByteBufferPipeSize(DWORD targetPid)
 	{
 		BOOL bResult;
-		auto iter = PipeMap.find(targetPid);
-		if (iter == PipeMap.end())
+		auto iter = g_PipeMap.find(targetPid);
+		if (iter == g_PipeMap.end())
 			return 0;
 		HANDLE hPipe = (*iter).second;
 
@@ -104,20 +102,20 @@ namespace IPC
 
 	bool AllocByteBuffer(DWORD size)
 	{
-		BufferData = (BYTE*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, size);
-		return BufferData;
+		g_BufferData = (BYTE*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, size);
+		return g_BufferData;
 	}
 
 	bool FreeByteBuffer()
 	{
-		return HeapFree(GetProcessHeap(), 0, IPC::BufferData);
+		return HeapFree(GetProcessHeap(), 0, g_BufferData);
 	}
 
 	bool WaitForConnection(DWORD targetPid)
 	{
 		BOOL bResult;
-		auto iter = PipeMap.find(targetPid);
-		if (iter == PipeMap.end())
+		auto iter = g_PipeMap.find(targetPid);
+		if (iter == g_PipeMap.end())
 			return false;
 		HANDLE hPipe = (*iter).second;
 
@@ -137,8 +135,8 @@ namespace IPC
 	bool DisconnectClient(DWORD targetPid)
 	{
 		BOOL bResult;
-		auto iter = PipeMap.find(targetPid);
-		if (iter == PipeMap.end())
+		auto iter = g_PipeMap.find(targetPid);
+		if (iter == g_PipeMap.end())
 			return false;
 		HANDLE hPipe = (*iter).second;
 

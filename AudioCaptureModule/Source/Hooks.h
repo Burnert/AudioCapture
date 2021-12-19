@@ -6,12 +6,12 @@
 #define JumpLength      5
 #define Jump64Length    9
 
-#define OffsetGetBuffer           0x20480
+//#define OffsetGetBuffer           0x20480
 #define HookLengthGetBuffer       5
-#define OffsetReleaseBuffer       0x20730
+//#define OffsetReleaseBuffer       0x20730
 #define HookLengthReleaseBuffer   5
 
-struct SModuleInfo
+struct ModuleInfo
 {
 	BYTE* BaseAddress;
 	DWORD Size;
@@ -19,7 +19,7 @@ struct SModuleInfo
 
 namespace Hooks
 {
-	struct SHookInfo
+	struct HookInfo
 	{
 		void* HookedProcAddress;
 		void* HookFunctionAddress;
@@ -27,20 +27,22 @@ namespace Hooks
 		size_t Length;
 	};
 
-	/* Retrieves SHookInfo for the specified hook. Returns nullptr if it doesn't exist */
-	SHookInfo* GetHookInfo(void* hookedAddress);
+	void ReadOffsets();
 
-	void CreateHooks(SModuleInfo moduleInfo);
+	/* Retrieves HookInfo for the specified hook. Returns nullptr if it doesn't exist */
+	HookInfo* GetHookInfo(void* hookedAddress);
+
+	void CreateHooks(ModuleInfo moduleInfo);
 	void RemoveHooks();
 
 	/* Create a hook at the specified address. */
-	SHookInfo* Hook(void* hookedAddress, void* hookFuncAddress, size_t length, void* trampolineAddress);
+	HookInfo* Hook(void* hookedAddress, void* hookFuncAddress, size_t length, void* trampolineAddress);
 	/* Remove the hook at the specified address. */
 	bool Unhook(void* hookedAddress);
 
 	/* hookLength: length of stolen bytes, without the jump instruction */
 	bool PlaceTrampoline(void* hookedAddress, void* targetAddress, size_t hookLength);
-	bool RemoveTrampoline(SHookInfo* pHookInfo);
+	bool RemoveTrampoline(HookInfo* pHookInfo);
 
 	// Data:
 

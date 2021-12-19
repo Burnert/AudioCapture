@@ -6,21 +6,25 @@
 #include <Audioclient.h>
 
 #include "Core/Core.hpp"
+#include "Offsets.h"
 #include "IPC.h"
 #include "File.h"
-#include "AudioTest.hpp"
+//#include "AudioTest.hpp"
 
-static HANDLE SnapshotHandle = 0;
+static HANDLE g_SnapshotHandle = 0;
 
-static MODULEENTRY32 AudioSesEntry;
-static MODULEENTRY32 AudioCaptureModuleEntry;
+static MODULEENTRY32 g_AudioSesEntry;
+static MODULEENTRY32 g_AudioCaptureModuleEntry;
 
-struct SModuleOffsets
+struct ModuleOffsets
 {
 	DWORD Kill;
+	DWORD AudioSes_GetBuffer;
+	DWORD AudioSes_ReleaseBuffer;
 
 	void LoadOffsets()
 	{
+		bool bResult;
 		// Get function offsets from locally loaded dll
 		HMODULE hACM = LoadLibraryExA(AUDIOCAPTUREDLL_NAME, NULL, DONT_RESOLVE_DLL_REFERENCES);
 		EXIT_ON_NULL_M(hACM, "Cannot load " AUDIOCAPTUREDLL_NAME " library!\n");
@@ -28,10 +32,21 @@ struct SModuleOffsets
 		EXIT_ON_NULL_M(killFuncAddress, "Cannot find Kill function offset!\n");
 		Kill = (DWORD)((BYTE*)killFuncAddress - (BYTE*)hACM);
 		FreeLibrary(hACM);
+
+		bResult = Offsets::LoadAudioSesOffsets(&AudioSes_GetBuffer, &AudioSes_ReleaseBuffer);
+		EXIT_ON_FALSE_M(bResult, "Cannot load AudioSes.dll offsets!\n");
+
+		bResult = Offsets::WriteOffsetsFile(AudioSes_GetBuffer, AudioSes_ReleaseBuffer);
+		EXIT_ON_FALSE_M(bResult, "Cannot write AudioSes.dll offsets!\n");
+	}
+
+	void Cleanup()
+	{
+		Offsets::DeleteOffsetsFile();
 	}
 };
 
-static SModuleOffsets ModuleOffsets;
+static ModuleOffsets g_ModuleOffsets;
 
 static inline void ExitOnWrongUsage()
 {
@@ -51,11 +66,11 @@ static bool _FindProcess(PROCESSENTRY32* pOutProcessEntry, unsigned long pid, co
 
 	if (name != nullptr)
 	{
-		bResult = FindProcess(SnapshotHandle, name, pOutProcessEntry);
+		bResult = FindProcess(g_SnapshotHandle, name, pOutProcessEntry);
 	}
 	else
 	{
-		bResult = FindProcess(SnapshotHandle, pid, pOutProcessEntry);
+		bResult = FindProcess(g_SnapshotHandle, pid, pOutProcessEntry);
 	}
 
 	if (!bResult)
@@ -114,24 +129,18 @@ static PROCESSENTRY32 InterpretArgs(int& argc, char** argv)
 	return processEntry;
 }
 
-int main(int argc, char** argv)
+void StartApplication(int argc, char** argv)
 {
-	EXIT_ON_NO_FILE_M(AUDIOCAPTUREDLL_NAME, "File %s not found!\n", AUDIOCAPTUREDLL_NAME);
-
-	if (argc < 3)
-	{
-		ExitOnWrongUsage();
-	}
-
-	ModuleOffsets.LoadOffsets();
-
 	BOOL bResult;
 
+	// Load all the offsets
+	g_ModuleOffsets.LoadOffsets();
+
 	// Find wanted process
-	SnapshotHandle = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, NULL);
-	EXIT_ON_INVALID_HANDLE(SnapshotHandle);
+	g_SnapshotHandle = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, NULL);
+	EXIT_ON_INVALID_HANDLE(g_SnapshotHandle);
 	PROCESSENTRY32 processEntry = InterpretArgs(argc, argv);
-	CloseHandle(SnapshotHandle);
+	CloseHandle(g_SnapshotHandle);
 
 	HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, processEntry.th32ProcessID);
 	EXIT_ON_INVALID_HANDLE_M(hProcess, "Cannot open process %s!\n", processEntry.szExeFile);
@@ -149,18 +158,14 @@ int main(int argc, char** argv)
 #endif
 
 	// Find Audio Session module
-	SnapshotHandle = CreateToolhelp32Snapshot(processSnapshotFlag, processEntry.th32ProcessID);
-	EXIT_ON_INVALID_HANDLE(SnapshotHandle);
+	g_SnapshotHandle = CreateToolhelp32Snapshot(processSnapshotFlag, processEntry.th32ProcessID);
+	EXIT_ON_INVALID_HANDLE(g_SnapshotHandle);
 	MODULEENTRY32 moduleEntry;
-	bResult = FindModule(SnapshotHandle, "AudioSes.dll", &moduleEntry);
+	bResult = FindModule(g_SnapshotHandle, "AudioSes.dll", &moduleEntry);
 	EXIT_ON_FALSE_M(bResult, "Cannot find AudioSes.dll in module list of the process %s.\n", processEntry.szExeFile);
 	printf_s("Module AudioSes.dll has been found.\n");
-	CloseHandle(SnapshotHandle);
-#if 0
-	CoInitialize(NULL);
-	MyAudioSource m;
-	PlayAudioStream(&m);
-#endif
+	CloseHandle(g_SnapshotHandle);
+
 	// Create an appropriate pipe
 	bResult = IPC::CreateByteBufferPipe(processEntry.th32ProcessID);
 	EXIT_ON_FALSE_M(bResult, "Cannot create a message pipe!\n");
@@ -170,12 +175,12 @@ int main(int argc, char** argv)
 	bResult = file.Open("AudioOutput.wav", IO::FA_ReadWrite);
 	EXIT_ON_FALSE_M(bResult, "Cannot create AudioOutput.wav!\n");
 
-	Audio::SAudioFormat audioFormatInfo { };
+	Audio::AudioFormat audioFormatInfo { };
 	audioFormatInfo.Channels = 2;
 	audioFormatInfo.BitDepth = 32;
 	audioFormatInfo.SampleRate = 48000;
 
-	Audio::SWaveInfo waveInfo { };
+	Audio::WaveInfo waveInfo { };
 	waveInfo.Format = &audioFormatInfo;
 	waveInfo.DataSize = 0;
 	waveInfo.WaveFormat = WAVE_FORMAT_IEEE_FLOAT;
@@ -211,8 +216,8 @@ int main(int argc, char** argv)
 	EXIT_ON_FALSE_M(bResult, "Cannot connect pipe to [%d]!", processEntry.th32ProcessID);
 	printf_s("Successfully connected to [%d]!\n", processEntry.th32ProcessID);
 
-	// Wait for the key press
- 	while (!(GetAsyncKeyState(VK_RCONTROL) & 0x8000))
+	// Wait for the key press to exit
+	while (!(GetAsyncKeyState(VK_RCONTROL) & 0x8000))
 	{
 		// Read from the buffer pipe
 
@@ -228,7 +233,7 @@ int main(int argc, char** argv)
 
 		fileSize += bufferSize;
 		// Write the read buffer to file
-		bResult = file.Write(IPC::BufferData, bufferSize);
+		bResult = file.Write(IPC::g_BufferData, bufferSize);
 		EXIT_ON_FALSE(bResult);
 
 		bResult = IPC::FreeByteBuffer();
@@ -243,17 +248,29 @@ int main(int argc, char** argv)
 	VirtualFreeEx(hProcess, paramLocation, 0, MEM_RELEASE);
 
 	// Kill injected module thread
-	SnapshotHandle = CreateToolhelp32Snapshot(processSnapshotFlag, processEntry.th32ProcessID);
-	bResult = FindModule(SnapshotHandle, AUDIOCAPTUREDLL_NAME, &moduleEntry);
+	g_SnapshotHandle = CreateToolhelp32Snapshot(processSnapshotFlag, processEntry.th32ProcessID);
+	bResult = FindModule(g_SnapshotHandle, AUDIOCAPTUREDLL_NAME, &moduleEntry);
 	EXIT_ON_FALSE_M(bResult, "Cannot find and unload module " AUDIOCAPTUREDLL_NAME "!\n");
-	CloseHandle(SnapshotHandle);
+	CloseHandle(g_SnapshotHandle);
 
 	// Execute Kill function in remote thread
-	hThread = CreateRemoteThread(hProcess, NULL, 0, (LPTHREAD_START_ROUTINE)(moduleEntry.modBaseAddr + ModuleOffsets.Kill), NULL, 0, NULL);
+	hThread = CreateRemoteThread(hProcess, NULL, 0, (LPTHREAD_START_ROUTINE)(moduleEntry.modBaseAddr + g_ModuleOffsets.Kill), NULL, 0, NULL);
 	EXIT_ON_NULL_M(hThread, "Cannot create module unloading thread in process %s.\n", processEntry.szExeFile);
 	CloseHandle(hThread);
 
 	IPC::DeleteByteBufferPipe(processEntry.th32ProcessID);
+}
+
+int main(int argc, char** argv)
+{
+	EXIT_ON_NO_FILE_M(AUDIOCAPTUREDLL_NAME, "File %s not found!\n", AUDIOCAPTUREDLL_NAME);
+
+	if (argc < 3)
+	{
+		ExitOnWrongUsage();
+	}
+
+	StartApplication(argc, argv);
 
 	return 0;
 }

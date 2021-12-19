@@ -10,13 +10,21 @@
 
 #define PIPE_NAME_PREFIX       R"(\\.\pipe\audiocapture-)"
 
-#define KILL_FUNC_OFFSET   0x110f5
+#define OFFSET_FILE_PATH       "audiocapture_offsets.tmp"
+#define GET_OFFSET_FILE_PATH(varName) \
+char varName[300]; \
+GetTempPath(300, varName); \
+strcat_s(varName, OFFSET_FILE_PATH)
 
 // Op codes
 
 #define OP_NOP    0x90
 #define OP_JMP    0xE9
 #define OP_JMPNA  0xFF
+
+// COM
+
+#define COM_RELEASE(x) if ((x)) { (x)->Release(); (x) = nullptr; }
 
 // Verify macros
 
@@ -38,6 +46,9 @@ if ((x)) { \
 
 #define EXIT_ON_INVALID_HANDLE(x)                 EXIT_ON((x) == INVALID_HANDLE_VALUE)
 #define EXIT_ON_INVALID_HANDLE_M(x, format, ...)  EXIT_ON_M((x) == INVALID_HANDLE_VALUE, format, __VA_ARGS__)
+
+#define EXIT_ON_FAILED(hr)                        EXIT_ON(FAILED((hr)))
+#define EXIT_ON_FAILED_M(hr, format, ...)         EXIT_ON_M(FAILED((hr)), format, __VA_ARGS__)
 
 #define EXIT_ON_NO_FILE(x) \
 { \

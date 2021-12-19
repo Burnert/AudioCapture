@@ -14,16 +14,16 @@ namespace IO
 
 namespace Audio
 {
-	struct SAudioFormat
+	struct AudioFormat
 	{
 		unsigned short Channels;
 		unsigned short BitDepth;
 		unsigned long SampleRate;
 	};
 
-	struct SWaveInfo
+	struct WaveInfo
 	{
-		SAudioFormat* Format;
+		AudioFormat* Format;
 		unsigned short WaveFormat;
 		unsigned long DataSize;
 	};
@@ -47,7 +47,7 @@ protected:
 class AudioFile : public File
 {
 public:
-	bool WriteWaveOpening(Audio::SWaveInfo* waveInfo);
+	bool WriteWaveOpening(Audio::WaveInfo* waveInfo);
 	/* Use it only after the whole file has been written! (moves the file pointer) */
 	bool WriteWaveSize(unsigned long size);
 
