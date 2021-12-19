@@ -259,6 +259,8 @@ void StartApplication(int argc, char** argv)
 	CloseHandle(hThread);
 
 	IPC::DeleteByteBufferPipe(processEntry.th32ProcessID);
+
+	g_ModuleOffsets.Cleanup();
 }
 
 int main(int argc, char** argv)
